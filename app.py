@@ -1,34 +1,43 @@
-from flask import Flask, request, jsonify,session
+import os
+from flask import Flask, request
 
 app = Flask(__name__)
 
-# Replace with your WhatsApp Cloud API credentials
-ACCESS_TOKEN = "EAAHZCkHIIBWUBOzhZArR0r0btGENcD6zcAHHfhKhslJ7aNbHfAytPUkgpB14OrEq9iwHOCThZCMVOEpxBlZC3L9GIlnXeF06kJ5ljZBPyOpU6sY0Dc87mugFczyZBXyt9gcngybRQXiiPk7uNXkSzXmATGevkmdCsjwUN4kl5VO6Nz7WHZA0AhKQWuA3tVaUV47rrxTV131CZAq5unj2wCI7wR9oAPqZCruUEvSSMGxti"
-PHONE_NUMBER_ID = "553295497877094"
+# Get sensitive data from environment variables
+ACCESS_TOKEN = os.environ.get("ACCESS_TOKEN")
+PHONE_NUMBER_ID = os.environ.get("PHONE_NUMBER_ID")
+VERIFY_TOKEN = os.environ.get("VERIFY_TOKEN")
 
-
-@app.route("/webhook", methods=["POST"])
-@app.route("/webhook", methods=["POST"])
+@app.route("/webhook", methods=["GET", "POST"])
 def webhook():
-    data = request.get_json()
-    if data.get("object") == "whatsapp_business_account":
-        for entry in data.get("entry", []):
-            for change in entry.get("changes", []):
-                value = change.get("value", {})
-                messages = value.get("messages", [])
-                for message in messages:
-                    from_number = message["from"]
-                    user_message = message.get("text", {}).get("body", "").strip().lower()
+    if request.method == "GET":
+        # Verification request from Meta (only when setting up the webhook)
+        verify_token = request.args.get("hub.verify_token")
+        challenge = request.args.get("hub.challenge")
 
-                    if user_message == "start":
-                        send_whatsapp_message(from_number, "Hi, how are you doing?")
-                        user_name=send_whatsapp_message(from_number,"Whats your name")
-                        session['user_name']=user_name
+        # Verify that the token matches
+        if verify_token == VERIFY_TOKEN:
+            return challenge, 200
+        else:
+            return "Invalid token", 403
+    
+    elif request.method == "POST":
+        # Handling incoming messages
+        data = request.get_json()
 
-    return "EVENT_RECEIVED", 200
+        if data.get("object") == "whatsapp_business_account":
+            for entry in data.get("entry", []):
+                for change in entry.get("changes", []):
+                    value = change.get("value", {})
+                    messages = value.get("messages", [])
+                    for message in messages:
+                        from_number = message["from"]
+                        user_message = message.get("text", {}).get("body", "").strip().lower()
 
+                        if user_message == "start":
+                            send_whatsapp_message(from_number, "Hi, how are you doing?")
 
-
+        return "EVENT_RECEIVED", 200
 
 def send_whatsapp_message(to, message):
     """Send a message via WhatsApp Cloud API."""
@@ -55,8 +64,7 @@ def send_whatsapp_message(to, message):
 def health():
     return "OK", 200
 
-
-
-
 if __name__ == "__main__":
-    app.run(debug=True, port=5000)
+    # Change port to the dynamic one provided by Render
+    app.run(debug=True, host='0.0.0.0', port=int(os.environ.get('PORT', 5000)))
+
